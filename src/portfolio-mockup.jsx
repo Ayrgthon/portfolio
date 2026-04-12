@@ -904,7 +904,7 @@ export default function Portfolio({ chatApi, onMaximize, onOpenFull, onVoiceMaxi
           className="pf-hero-section"
           ref={ref("home")}
           data-section="home"
-          style={{ minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center", paddingBottom: 80 }}
+          style={{ minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center", paddingTop: 76, paddingBottom: 80 }}
         >
           {/* top bar */}
           <div style={{
