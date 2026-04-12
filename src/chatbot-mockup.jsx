@@ -1,19 +1,5 @@
 import { useRef, useEffect } from "react";
-
-function MarkdownLite({ text }) {
-  const parts = text.split(/(\*\*.*?\*\*|\n|• )/g);
-  return (
-    <span>
-      {parts.map((p, i) => {
-        if (p === "\n") return <br key={i} />;
-        if (p === "• ") return <span key={i} style={{ color: "#5ac8fa" }}>• </span>;
-        if (p.startsWith("**") && p.endsWith("**"))
-          return <strong key={i} style={{ color: "rgba(255,255,255,0.9)", fontWeight: 600 }}>{p.slice(2, -2)}</strong>;
-        return <span key={i}>{p}</span>;
-      })}
-    </span>
-  );
-}
+import ReactMarkdown from "react-markdown";
 
 function StreamingCursor() {
   return (
@@ -74,7 +60,7 @@ function Bubble({ msg, isLast }) {
             ))}
           </div>
         )}
-        <MarkdownLite text={msg.text} />
+        <ReactMarkdown>{msg.text}</ReactMarkdown>
         {!isUser && isLast && msg.text === "" ? null : (!isUser && isLast ? <StreamingCursor /> : null)}
       </div>
     </div>
