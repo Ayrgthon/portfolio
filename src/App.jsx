@@ -4,6 +4,7 @@ import Chatbot from "./chatbot-mockup";
 import ChatbotFull from "./chatbot-full";
 import VoicebotWindow from "./voicebot-window";
 import VoicebotFull from "./voicebot-full";
+import { useAuraVoice } from "./useAuraVoice";
 
 const AURA_BASE_URL = import.meta.env.VITE_AURA_BASE_URL ?? "http://localhost:8000";
 
@@ -159,6 +160,7 @@ function App() {
   const [view, setView] = useState("portfolio");
   const [exiting, setExiting] = useState(false);
   const chatApi = useChatApi();
+  const voiceApi = useAuraVoice();
 
   const goTo = (target) => {
     if (view === "portfolio") {
@@ -202,6 +204,7 @@ function App() {
     <>
       <Portfolio
         chatApi={chatApi}
+        voiceApi={voiceApi}
         onMaximize={maximize}
         onOpenFull={goFull}
         onVoiceMaximize={() => setView("voice-window")}
@@ -220,10 +223,10 @@ function App() {
             <ChatbotFull token={chatApi.token} onBack={minimize} onMinimize={() => { pendingView.current = "chatbot"; setExiting(true); }} />
           )}
           {view === "voice-window" && (
-            <VoicebotWindow onBack={minimize} onOpenFull={() => { pendingView.current = "voice-full"; setExiting(true); }} />
+            <VoicebotWindow voiceApi={voiceApi} onBack={minimize} onOpenFull={() => { pendingView.current = "voice-full"; setExiting(true); }} />
           )}
           {view === "voice-full" && (
-            <VoicebotFull onBack={minimize} onMinimize={() => { pendingView.current = "voice-window"; setExiting(true); }} />
+            <VoicebotFull voiceApi={voiceApi} onBack={minimize} onMinimize={() => { pendingView.current = "voice-window"; setExiting(true); }} />
           )}
         </div>
       )}

@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect } from "react";
 
 function Waveform({ active }) {
   const canvasRef = useRef(null);
@@ -41,16 +41,34 @@ function Waveform({ active }) {
   return <canvas ref={canvasRef} />;
 }
 
-const MOCK_TRANSCRIPT = [
-  { role: "user", text: "Cuéntame sobre la experiencia de Ayrgthon." },
-  { role: "bot",  text: "Ayrgthon es Senior AI Engineer en Indra Group. Construyó un agente de voz sobre Gemini Live que redujo la duración de llamadas de 15 min a 2–3 min y el costo de $1.00 a $0.07 por llamada." },
-  { role: "user", text: "¿Qué otros proyectos ha hecho?" },
-  { role: "bot",  text: "Desarrolló pipelines multimodales de extracción de registros de salud, modelos espacio-temporales de visión por computador para Cerrejón, y un agente móvil autónomo con MCPs personalizados." },
-];
+export default function VoicebotWindow({ voiceApi, onBack, onOpenFull }) {
+  const { status, isMuted, isSpeaking, connect, disconnect, toggleMute } = voiceApi;
+  const active = status === "connected";
+  const connecting = status === "connecting";
 
-export default function VoicebotWindow({ onBack, onOpenFull }) {
-  const [active, setActive] = useState(true);
-  const [muted, setMuted] = useState(false);
+  // auto-connect on mount
+  useEffect(() => {
+    if (status === "idle") connect();
+  }, []);
+
+  const handleHangup = () => {
+    disconnect();
+    onBack();
+  };
+
+  const statusLabel = connecting
+    ? "Conectando..."
+    : status === "error"
+    ? "Error de conexión"
+    : status === "busy"
+    ? "Servidor ocupado"
+    : !active
+    ? "Desconectado"
+    : isMuted
+    ? "Micrófono silenciado"
+    : isSpeaking
+    ? "Aura está hablando..."
+    : "Aura está escuchando...";
 
   return (
     <div style={{ height: "100vh", width: "100vw", background: "linear-gradient(145deg, #0a0a0c 0%, #0d1117 60%, #0a0c10 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'SF Pro Display', -apple-system, sans-serif" }}>
@@ -58,7 +76,6 @@ export default function VoicebotWindow({ onBack, onOpenFull }) {
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Sora:wght@300;400;500;600&display=swap');
         * { margin: 0; padding: 0; box-sizing: border-box; }
         @keyframes vpulse { 0%,100% { opacity: 0.45; transform: scale(1); } 50% { opacity: 1; transform: scale(1.06); } }
-        @keyframes vblink { 50% { opacity: 0; } }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.07); border-radius: 2px; }
       `}</style>
@@ -68,9 +85,9 @@ export default function VoicebotWindow({ onBack, onOpenFull }) {
         {/* title bar */}
         <div style={{ display: "flex", alignItems: "center", padding: "12px 16px", borderBottom: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,0.02)", flexShrink: 0 }}>
           <div style={{ display: "flex", gap: 6 }}>
-            <span onClick={onBack}     style={{ width: 12, height: 12, borderRadius: "50%", background: "#ff5f57", cursor: "pointer" }} title="Cerrar" />
-            <span onClick={onBack}     style={{ width: 12, height: 12, borderRadius: "50%", background: "#febc2e", cursor: "pointer" }} title="Minimizar" />
-            <span onClick={onOpenFull} style={{ width: 12, height: 12, borderRadius: "50%", background: "#28c840", cursor: "pointer" }} title="Fullscreen" />
+            <span onClick={handleHangup} style={{ width: 12, height: 12, borderRadius: "50%", background: "#ff5f57", cursor: "pointer" }} title="Cerrar" />
+            <span onClick={onBack}       style={{ width: 12, height: 12, borderRadius: "50%", background: "#febc2e", cursor: "pointer" }} title="Minimizar" />
+            <span onClick={onOpenFull}   style={{ width: 12, height: 12, borderRadius: "50%", background: "#28c840", cursor: "pointer" }} title="Fullscreen" />
           </div>
           <div style={{ flex: 1, textAlign: "center" }}>
             <span style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: 0.5 }}>
@@ -78,14 +95,14 @@ export default function VoicebotWindow({ onBack, onOpenFull }) {
             </span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 5, width: 60, justifyContent: "flex-end" }}>
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: active ? "#28c840" : "#febc2e", animation: active ? "vpulse 2s infinite" : "none" }} />
-            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", fontFamily: "'JetBrains Mono', monospace" }}>{active ? "live" : "idle"}</span>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: active ? "#28c840" : connecting ? "#febc2e" : "#ff5f57", animation: active ? "vpulse 2s infinite" : "none" }} />
+            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", fontFamily: "'JetBrains Mono', monospace" }}>{active ? "live" : connecting ? "init" : "off"}</span>
           </div>
         </div>
 
-        {/* waveform area */}
-        <div style={{ padding: "28px 24px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 20, borderBottom: "1px solid rgba(255,255,255,0.04)", background: "rgba(0,0,0,0.2)" }}>
-          <Waveform active={active && !muted} />
+        {/* waveform + status */}
+        <div style={{ flex: 1, padding: "28px 24px 20px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20, background: "rgba(0,0,0,0.2)" }}>
+          <Waveform active={active && (isSpeaking || !isMuted)} />
 
           {/* avatar + status */}
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
@@ -94,41 +111,48 @@ export default function VoicebotWindow({ onBack, onOpenFull }) {
             </div>
             <div>
               <div style={{ fontSize: 14, fontWeight: 500, color: "rgba(255,255,255,0.75)" }}>
-                {muted ? "Micrófono silenciado" : active ? "Aura está escuchando..." : "Sesión pausada"}
+                {statusLabel}
               </div>
               <div style={{ fontSize: 11, color: "rgba(255,255,255,0.28)", marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>
-                gemini-2.5-flash · ~230ms latency
+                gemini-2.5-flash · WebRTC
               </div>
             </div>
           </div>
 
           {/* controls */}
           <div style={{ display: "flex", gap: 12 }}>
-            <button onClick={() => setMuted(m => !m)} style={{ width: 42, height: 42, borderRadius: "50%", border: `1px solid ${muted ? "rgba(255,95,87,0.4)" : "rgba(255,255,255,0.1)"}`, background: muted ? "rgba(255,95,87,0.12)" : "rgba(255,255,255,0.05)", color: muted ? "#ff5f57" : "rgba(255,255,255,0.5)", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} title={muted ? "Activar mic" : "Silenciar"}>
-              {muted ? "🔇" : "🎤"}
+            <button
+              onClick={toggleMute}
+              disabled={!active}
+              style={{ width: 42, height: 42, borderRadius: "50%", border: `1px solid ${isMuted ? "rgba(255,95,87,0.4)" : "rgba(255,255,255,0.1)"}`, background: isMuted ? "rgba(255,95,87,0.12)" : "rgba(255,255,255,0.05)", color: isMuted ? "#ff5f57" : "rgba(255,255,255,0.5)", fontSize: 16, cursor: active ? "pointer" : "default", opacity: active ? 1 : 0.4, display: "flex", alignItems: "center", justifyContent: "center" }}
+              title={isMuted ? "Activar mic" : "Silenciar"}
+            >
+              {isMuted ? "🔇" : "🎤"}
             </button>
-            <button onClick={() => setActive(a => !a)} style={{ width: 42, height: 42, borderRadius: "50%", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.5)", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} title="Pausar">
-              {active ? "⏸" : "▶️"}
-            </button>
-            <button onClick={onBack} style={{ width: 42, height: 42, borderRadius: "50%", border: "1px solid rgba(255,95,87,0.25)", background: "rgba(255,95,87,0.1)", color: "#ff5f57", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} title="Colgar">
-              📵
-            </button>
-          </div>
-        </div>
 
-        {/* transcript */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "14px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.2)", fontFamily: "'JetBrains Mono', monospace", marginBottom: 4 }}>transcripción</div>
-          {MOCK_TRANSCRIPT.map((line, i) => (
-            <div key={i} style={{ alignSelf: line.role === "user" ? "flex-end" : "flex-start", maxWidth: "82%", padding: "8px 12px", borderRadius: line.role === "user" ? "12px 12px 4px 12px" : "12px 12px 12px 4px", background: line.role === "user" ? "rgba(90,200,250,0.1)" : "rgba(255,255,255,0.05)", border: `1px solid ${line.role === "user" ? "rgba(90,200,250,0.15)" : "rgba(255,255,255,0.06)"}`, fontSize: 12.5, lineHeight: 1.55, color: line.role === "user" ? "#a9ddf5" : "rgba(255,255,255,0.65)" }}>
-              {line.text}
-            </div>
-          ))}
+            {!active && status !== "connecting" ? (
+              <button
+                onClick={connect}
+                style={{ width: 42, height: 42, borderRadius: "50%", border: "1px solid rgba(40,200,64,0.3)", background: "rgba(40,200,64,0.1)", color: "#28c840", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                title="Conectar"
+              >
+                📞
+              </button>
+            ) : (
+              <button
+                onClick={handleHangup}
+                style={{ width: 42, height: 42, borderRadius: "50%", border: "1px solid rgba(255,95,87,0.25)", background: "rgba(255,95,87,0.1)", color: "#ff5f57", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                title="Colgar"
+              >
+                📵
+              </button>
+            )}
+          </div>
         </div>
 
         <div style={{ padding: "8px 18px 12px", borderTop: "1px solid rgba(255,255,255,0.04)", textAlign: "center" }}>
           <span style={{ fontSize: 10, color: "rgba(255,255,255,0.15)", fontFamily: "'JetBrains Mono', monospace" }}>
-            mock demo · real-time voice pipeline
+            aura voice · real-time AI assistant
           </span>
         </div>
       </div>

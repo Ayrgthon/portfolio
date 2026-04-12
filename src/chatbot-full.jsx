@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
 
 const AURA_BASE_URL = import.meta.env.VITE_AURA_BASE_URL ?? "http://localhost:8000";
 
@@ -29,7 +30,7 @@ function Bubble({ msg, isStreaming }) {
             ))}
           </div>
         )}
-        {msg.text}
+        {isUser ? msg.text : <ReactMarkdown>{msg.text}</ReactMarkdown>}
         {!isUser && isStreaming && (
           <span style={{ display: "inline-block", width: 7, height: 14, marginLeft: 3, background: "#5ac8fa", borderRadius: 1, verticalAlign: "text-bottom", animation: "cblink 0.8s step-end infinite" }} />
         )}

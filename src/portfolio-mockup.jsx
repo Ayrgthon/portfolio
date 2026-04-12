@@ -427,7 +427,7 @@ function ChatPreview({ chatApi }) {
 }
 
 /* ── voice visualizer ── */
-function VoiceVisualizer() {
+function VoiceVisualizer({ voiceStatus }) {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -502,7 +502,9 @@ function VoiceVisualizer() {
           </div>
 
           <div>
-            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.62)", fontWeight: 500 }}>Aura is listening...</div>
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.62)", fontWeight: 500 }}>
+              {voiceStatus === "connected" ? "Aura is live" : "Aura is listening..."}
+            </div>
             <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>Powered by Gemini Live</div>
           </div>
         </div>
@@ -715,7 +717,7 @@ function ContactForm() {
 }
 
 /* ── main ── */
-export default function Portfolio({ chatApi, onMaximize, onOpenFull, onVoiceMaximize, onVoiceOpenFull }) {
+export default function Portfolio({ chatApi, voiceApi, onMaximize, onOpenFull, onVoiceMaximize, onVoiceOpenFull }) {
   const [section, setSection] = useState("home");
   const sectionRefs = useRef({});
 
@@ -995,7 +997,7 @@ export default function Portfolio({ chatApi, onMaximize, onOpenFull, onVoiceMaxi
               <ChatPreview chatApi={chatApi} />
             </MacWindow>
             <MacWindow title="aura-assistant — voice-bot" onMaximize={onVoiceMaximize} onOpenFull={onVoiceOpenFull}>
-              <VoiceVisualizer />
+              <VoiceVisualizer voiceStatus={voiceApi?.status} />
             </MacWindow>
           </div>
         </section>
