@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 
-const AURA_BASE_URL = import.meta.env.VITE_AURA_BASE_URL ?? "http://localhost:8000";
+const AURA_BASE_URL = import.meta.env.VITE_AURA_CHAT_URL ?? import.meta.env.VITE_AURA_BASE_URL ?? "http://localhost:8000";
 
 function authHeaders(token) {
   return { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
