@@ -114,7 +114,7 @@ export default function VoicebotWindow({ voiceApi, onBack, onOpenFull }) {
                 {statusLabel}
               </div>
               <div style={{ fontSize: 11, color: "rgba(255,255,255,0.28)", marginTop: 2, fontFamily: "'JetBrains Mono', monospace" }}>
-                gemini-2.5-flash · WebRTC
+                gemini-2.5-flash · WebSocket
               </div>
             </div>
           </div>

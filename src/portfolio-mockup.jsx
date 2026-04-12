@@ -426,8 +426,8 @@ function ChatPreview({ chatApi }) {
   );
 }
 
-/* ── voice visualizer ── */
-function VoiceVisualizer({ voiceStatus }) {
+/* ── voice preview (main mode) ── */
+function Waveform({ active }) {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -455,10 +455,13 @@ function VoiceVisualizer({ voiceStatus }) {
         const t = frame * 0.04 + i * 0.3;
         const centerDistance = Math.abs(i - bars / 2) / (bars / 2);
         const envelope = 1 - Math.pow(centerDistance, 1.4) * 0.68;
-        const h = ((Math.sin(t) * 0.5 + 0.5) * 46 + 10) * envelope;
-        const alpha = 0.25 + (Math.sin(t) * 0.5 + 0.5) * 0.5;
+        const amp = active ? 1 : 0.18;
+        const h = ((Math.sin(t) * 0.5 + 0.5) * 46 + 10) * envelope * amp;
+        const alpha = active ? (0.25 + (Math.sin(t) * 0.5 + 0.5) * 0.5) : 0.12;
         ctx.fillStyle = `rgba(90,200,250,${alpha})`;
-        ctx.fillRect(i * gap + 2, H / 2 - h / 2, Math.max(gap - 4, 2), h);
+        ctx.beginPath();
+        ctx.roundRect(i * gap + 2, H / 2 - h / 2, Math.max(gap - 4, 2), h, 2);
+        ctx.fill();
       }
 
       frame++;
@@ -467,7 +470,29 @@ function VoiceVisualizer({ voiceStatus }) {
 
     rafId = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(rafId);
-  }, []);
+  }, [active]);
+
+  return <canvas className="pf-voice-canvas" ref={canvasRef} />;
+}
+
+function VoicePreview({ voiceApi }) {
+  const { status, isMuted, isSpeaking, connect, disconnect, toggleMute } = voiceApi;
+  const active = status === "connected";
+  const connecting = status === "connecting";
+
+  const statusLabel = connecting
+    ? "Conectando..."
+    : status === "error"
+    ? "Error de conexión"
+    : status === "busy"
+    ? "Servidor ocupado"
+    : !active
+    ? "Llama a Aura"
+    : isMuted
+    ? "Micrófono silenciado"
+    : isSpeaking
+    ? "Aura está hablando..."
+    : "Aura está escuchando...";
 
   return (
     <div className="pf-voice-panel" style={{ padding: "22px 18px", minHeight: 420, display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 20 }}>
@@ -475,38 +500,93 @@ function VoiceVisualizer({ voiceStatus }) {
         <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", fontFamily: "'JetBrains Mono', monospace" }}>
           live-voice-session
         </span>
-        <span style={{ fontSize: 10, color: "rgba(90,200,250,0.55)", fontFamily: "'JetBrains Mono', monospace" }}>
-          ~230ms latency
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: active ? "#28c840" : connecting ? "#febc2e" : "rgba(255,255,255,0.2)", animation: active ? "pulse 2s infinite" : "none" }} />
+          <span style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", fontFamily: "'JetBrains Mono', monospace" }}>
+            {active ? "live" : connecting ? "init" : "off"}
+          </span>
+        </div>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 22, flex: 1 }}>
-        <canvas className="pf-voice-canvas" ref={canvasRef} />
+        <Waveform active={active && (isSpeaking || !isMuted)} />
 
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div
             style={{
-              width: 56,
-              height: 56,
+              width: 52,
+              height: 52,
               borderRadius: "50%",
-              background: "rgba(90,200,250,0.14)",
-              border: "1px solid rgba(90,200,250,0.35)",
+              background: active ? "rgba(90,200,250,0.14)" : "rgba(255,255,255,0.05)",
+              border: `1px solid ${active ? "rgba(90,200,250,0.35)" : "rgba(255,255,255,0.1)"}`,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              cursor: "pointer",
-              boxShadow: "0 0 24px rgba(90,200,250,0.14)",
+              boxShadow: active ? "0 0 24px rgba(90,200,250,0.14)" : "none",
+              animation: active ? "pulse 2.4s ease infinite" : "none",
             }}
           >
-            <span style={{ fontSize: 20 }}>🎤</span>
+            <span style={{ fontSize: 20 }}>🎙️</span>
           </div>
 
           <div>
             <div style={{ fontSize: 13, color: "rgba(255,255,255,0.62)", fontWeight: 500 }}>
-              {voiceStatus === "connected" ? "Aura is live" : "Aura is listening..."}
+              {statusLabel}
             </div>
-            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)" }}>Powered by Gemini Live</div>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", fontFamily: "'JetBrains Mono', monospace" }}>
+              gemini-2.5-flash · WebSocket
+            </div>
           </div>
+        </div>
+
+        {/* controls */}
+        <div style={{ display: "flex", gap: 10 }}>
+          {active && (
+            <button
+              onClick={toggleMute}
+              style={{
+                width: 38, height: 38, borderRadius: "50%",
+                border: `1px solid ${isMuted ? "rgba(255,95,87,0.4)" : "rgba(255,255,255,0.1)"}`,
+                background: isMuted ? "rgba(255,95,87,0.12)" : "rgba(255,255,255,0.05)",
+                color: isMuted ? "#ff5f57" : "rgba(255,255,255,0.5)",
+                fontSize: 14, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}
+              title={isMuted ? "Activar mic" : "Silenciar"}
+            >
+              {isMuted ? "🔇" : "🎤"}
+            </button>
+          )}
+
+          {!active && !connecting ? (
+            <button
+              onClick={connect}
+              style={{
+                width: 38, height: 38, borderRadius: "50%",
+                border: "1px solid rgba(40,200,64,0.3)",
+                background: "rgba(40,200,64,0.1)",
+                color: "#28c840", fontSize: 14, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}
+              title="Conectar"
+            >
+              📞
+            </button>
+          ) : (active || connecting) && (
+            <button
+              onClick={disconnect}
+              style={{
+                width: 38, height: 38, borderRadius: "50%",
+                border: "1px solid rgba(255,95,87,0.25)",
+                background: "rgba(255,95,87,0.1)",
+                color: "#ff5f57", fontSize: 14, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}
+              title="Colgar"
+            >
+              📵
+            </button>
+          )}
         </div>
       </div>
 
@@ -997,7 +1077,7 @@ export default function Portfolio({ chatApi, voiceApi, onMaximize, onOpenFull, o
               <ChatPreview chatApi={chatApi} />
             </MacWindow>
             <MacWindow title="aura-assistant — voice-bot" onMaximize={onVoiceMaximize} onOpenFull={onVoiceOpenFull}>
-              <VoiceVisualizer voiceStatus={voiceApi?.status} />
+              <VoicePreview voiceApi={voiceApi} />
             </MacWindow>
           </div>
         </section>

@@ -6,7 +6,7 @@ import VoicebotWindow from "./voicebot-window";
 import VoicebotFull from "./voicebot-full";
 import { useAuraVoice } from "./useAuraVoice";
 
-const AURA_BASE_URL = import.meta.env.VITE_AURA_BASE_URL ?? "http://localhost:8000";
+const AURA_BASE_URL = import.meta.env.VITE_AURA_BASE_URL ?? "http://localhost:8001";
 
 const INITIAL_MESSAGES = [
   {
