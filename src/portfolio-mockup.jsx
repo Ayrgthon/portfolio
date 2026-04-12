@@ -475,27 +475,76 @@ function Waveform({ active }) {
   return <canvas className="pf-voice-canvas" ref={canvasRef} />;
 }
 
+function IconPower({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 2v9" />
+      <path d="M6.1 6.1a8 8 0 1 0 11.8 0" />
+    </svg>
+  );
+}
+
+function IconMic({ size = 18, muted = false }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="9" y="2.8" width="6" height="11" rx="3" />
+      <path d="M6 11a6 6 0 0 0 12 0" />
+      <path d="M12 17v4" />
+      <path d="M8 21h8" />
+      {muted && <path d="M4 4l16 16" />}
+    </svg>
+  );
+}
+
 function VoicePreview({ voiceApi }) {
   const { status, isMuted, isSpeaking, connect, disconnect, toggleMute } = voiceApi;
   const active = status === "connected";
   const connecting = status === "connecting";
+  const busy = status === "busy";
+  const hasError = status === "error";
 
   const statusLabel = connecting
     ? "Conectando..."
-    : status === "error"
+    : hasError
     ? "Error de conexión"
-    : status === "busy"
+    : busy
     ? "Servidor ocupado"
     : !active
-    ? "Llama a Aura"
+    ? "Desconectado"
     : isMuted
     ? "Micrófono silenciado"
     : isSpeaking
     ? "Aura está hablando..."
     : "Aura está escuchando...";
 
+  const statusTone = hasError
+    ? "#ff5f57"
+    : busy
+    ? "#febc2e"
+    : active
+    ? "#5ac8fa"
+    : "rgba(255,255,255,0.6)";
+
+  const handleHangup = () => {
+    disconnect();
+  };
+
+  const handleConnectOrHangup = () => {
+    if (!active && status !== "connecting") {
+      connect();
+      return;
+    }
+    handleHangup();
+  };
+
+  const idleOrError = !active && status !== "connecting";
+  const connectionLabel = idleOrError ? "Conectar" : "Colgar";
+  const micLabel = idleOrError ? "Iniciar voz" : "Finalizar";
+  const muteLabel = isMuted ? "Activar mic" : "Silenciar";
+  const muteDisabled = !active;
+
   return (
-    <div className="pf-voice-panel" style={{ padding: "22px 18px", minHeight: 420, display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 20 }}>
+    <div className="pf-voice-panel" style={{ padding: "18px 18px 16px", minHeight: 420, display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", fontFamily: "'JetBrains Mono', monospace" }}>
           live-voice-session
@@ -508,103 +557,150 @@ function VoicePreview({ voiceApi }) {
         </div>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 22, flex: 1 }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, flex: 1 }}>
         <Waveform active={active && (isSpeaking || !isMuted)} />
 
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div
-            style={{
-              width: 52,
-              height: 52,
-              borderRadius: "50%",
-              background: active ? "rgba(90,200,250,0.14)" : "rgba(255,255,255,0.05)",
-              border: `1px solid ${active ? "rgba(90,200,250,0.35)" : "rgba(255,255,255,0.1)"}`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: active ? "0 0 24px rgba(90,200,250,0.14)" : "none",
-              animation: active ? "pulse 2.4s ease infinite" : "none",
-            }}
-          >
-            <span style={{ fontSize: 20 }}>🎙️</span>
+        <div
+          style={{
+            width: "min(100%, 360px)",
+            borderRadius: 12,
+            padding: "10px 12px",
+            background: "rgba(255,255,255,0.03)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
+          }}
+        >
+          <div style={{ fontSize: 13, color: statusTone, fontWeight: 500 }}>
+            {statusLabel}
           </div>
-
-          <div>
-            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.62)", fontWeight: 500 }}>
-              {statusLabel}
-            </div>
-            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", fontFamily: "'JetBrains Mono', monospace" }}>
-              gemini-2.5-flash · WebSocket
-            </div>
+          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", fontFamily: "'JetBrains Mono', monospace", marginTop: 2 }}>
+            gemini-2.5-flash · WebSocket
           </div>
-        </div>
-
-        {/* controls */}
-        <div style={{ display: "flex", gap: 10 }}>
-          {active && (
-            <button
-              onClick={toggleMute}
-              style={{
-                width: 38, height: 38, borderRadius: "50%",
-                border: `1px solid ${isMuted ? "rgba(255,95,87,0.4)" : "rgba(255,255,255,0.1)"}`,
-                background: isMuted ? "rgba(255,95,87,0.12)" : "rgba(255,255,255,0.05)",
-                color: isMuted ? "#ff5f57" : "rgba(255,255,255,0.5)",
-                fontSize: 14, cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}
-              title={isMuted ? "Activar mic" : "Silenciar"}
-            >
-              {isMuted ? "🔇" : "🎤"}
-            </button>
-          )}
-
-          {!active && !connecting ? (
-            <button
-              onClick={connect}
-              style={{
-                width: 38, height: 38, borderRadius: "50%",
-                border: "1px solid rgba(40,200,64,0.3)",
-                background: "rgba(40,200,64,0.1)",
-                color: "#28c840", fontSize: 14, cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}
-              title="Conectar"
-            >
-              📞
-            </button>
-          ) : (active || connecting) && (
-            <button
-              onClick={disconnect}
-              style={{
-                width: 38, height: 38, borderRadius: "50%",
-                border: "1px solid rgba(255,95,87,0.25)",
-                background: "rgba(255,95,87,0.1)",
-                color: "#ff5f57", fontSize: 14, cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}
-              title="Colgar"
-            >
-              📵
-            </button>
-          )}
         </div>
       </div>
 
       <div
         style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
           borderTop: "1px solid rgba(255,255,255,0.05)",
-          paddingTop: 10,
+          paddingTop: 12,
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
         }}
       >
-        <span style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", fontFamily: "'JetBrains Mono', monospace" }}>
-          realtime voice pipeline
-        </span>
-        <span style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", fontFamily: "'JetBrains Mono', monospace" }}>
-          gemini-2.5-flash
-        </span>
+        <div
+          className="pf-voice-controls"
+          style={{
+            width: "100%",
+            maxWidth: 360,
+            margin: "0 auto",
+            display: "grid",
+            gridTemplateColumns: "minmax(0,1fr) auto minmax(0,1fr)",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
+          <button
+            className="pf-voice-side-control"
+            onClick={handleConnectOrHangup}
+            style={{
+              width: "100%",
+              height: 38,
+              borderRadius: 999,
+              border: `1px solid ${idleOrError ? "rgba(40,200,64,0.34)" : "rgba(255,95,87,0.28)"}`,
+              background: idleOrError ? "rgba(40,200,64,0.1)" : "rgba(255,95,87,0.1)",
+              color: idleOrError ? "#7ddf8b" : "#ff8b86",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+              padding: "0 12px",
+              fontSize: 10,
+              textTransform: "uppercase",
+              letterSpacing: 0.5,
+              fontFamily: "'JetBrains Mono', monospace",
+              cursor: "pointer",
+            }}
+            title={connectionLabel}
+          >
+            <IconPower size={13} />
+            {connectionLabel}
+          </button>
+
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+            <button
+              className="pf-voice-main-control"
+              onClick={handleConnectOrHangup}
+              style={{
+                width: 62,
+                height: 62,
+                borderRadius: "50%",
+                border: `1px solid ${idleOrError ? "rgba(40,200,64,0.35)" : "rgba(255,95,87,0.3)"}`,
+                background: idleOrError
+                  ? "radial-gradient(circle at 30% 25%, rgba(40,200,64,0.22), rgba(40,200,64,0.08) 70%)"
+                  : "radial-gradient(circle at 30% 25%, rgba(255,95,87,0.2), rgba(255,95,87,0.08) 70%)",
+                color: idleOrError ? "#7ddf8b" : "#ff8b86",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                boxShadow: idleOrError ? "0 0 24px rgba(40,200,64,0.14)" : "0 0 24px rgba(255,95,87,0.12)",
+                animation: "pulse 2.1s ease infinite",
+              }}
+              title={micLabel}
+            >
+              <IconMic size={24} muted={!idleOrError} />
+            </button>
+
+            <span style={{ fontSize: 9.5, color: "rgba(255,255,255,0.36)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: 0.3 }}>
+              {micLabel}
+            </span>
+          </div>
+
+          <button
+            className="pf-voice-side-control"
+            onClick={toggleMute}
+            disabled={muteDisabled}
+            style={{
+              width: "100%",
+              height: 38,
+              borderRadius: 999,
+              border: `1px solid ${isMuted ? "rgba(255,95,87,0.3)" : "rgba(90,200,250,0.24)"}`,
+              background: isMuted ? "rgba(255,95,87,0.1)" : "rgba(90,200,250,0.08)",
+              color: isMuted ? "#ff8b86" : "rgba(168,223,247,0.9)",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+              padding: "0 12px",
+              fontSize: 10,
+              textTransform: "uppercase",
+              letterSpacing: 0.5,
+              fontFamily: "'JetBrains Mono', monospace",
+              cursor: muteDisabled ? "default" : "pointer",
+              opacity: muteDisabled ? 0.4 : 1,
+            }}
+            title={muteLabel}
+          >
+            <IconMic size={13} muted={isMuted} />
+            {muteLabel}
+          </button>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <span style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", fontFamily: "'JetBrains Mono', monospace" }}>
+            realtime voice pipeline
+          </span>
+          <span style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", fontFamily: "'JetBrains Mono', monospace" }}>
+            gemini-2.5-flash
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -928,6 +1024,22 @@ export default function Portfolio({ chatApi, voiceApi, onMaximize, onOpenFull, o
 
           .pf-voice-canvas {
             height: 88px !important;
+          }
+
+          .pf-voice-controls {
+            max-width: 100% !important;
+            gap: 8px !important;
+          }
+
+          .pf-voice-side-control {
+            height: 34px !important;
+            padding: 0 8px !important;
+            font-size: 9px !important;
+          }
+
+          .pf-voice-main-control {
+            width: 56px !important;
+            height: 56px !important;
           }
 
           .pf-dock {
