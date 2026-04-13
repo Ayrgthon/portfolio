@@ -145,9 +145,19 @@ export function useAuraVoice() {
       });
       streamRef.current = stream;
 
-      const pc = new RTCPeerConnection({
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-      });
+      // Fetch ICE config (STUN + TURN) from backend
+      let iceServers = [{ urls: "stun:stun.l.google.com:19302" }];
+      try {
+        const iceResp = await fetch(`${BACKEND_URL}/ice-config`);
+        if (iceResp.ok) {
+          const iceData = await iceResp.json();
+          iceServers = iceData.iceServers;
+        }
+      } catch {
+        // fallback to default STUN
+      }
+
+      const pc = new RTCPeerConnection({ iceServers });
       pcRef.current = pc;
 
       // Add mic track — browser AEC applies automatically
@@ -173,7 +183,7 @@ export function useAuraVoice() {
       // Connection state changes
       pc.onconnectionstatechange = () => {
         const state = pc.connectionState;
-        if (state === "failed" || state === "closed" || state === "disconnected") {
+        if (state === "failed" || state === "closed") {
           cleanup();
           setStatus("idle");
         }
