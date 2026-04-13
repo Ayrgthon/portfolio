@@ -1,32 +1,19 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 
 const BACKEND_URL = (
-  import.meta.env.VITE_AURA_VOICE_URL ?? "http://localhost:8001"
+  import.meta.env.VITE_AURA_VOICE_URL ?? "http://localhost:8080"
 ).replace(/\/$/, "");
 
-const OUTPUT_SAMPLE_RATE = 24000;
-const CLEAR_SIGNAL = "__CLEAR__";
-
-function pcm16ToFloat32(bytes) {
-  const int16 = new Int16Array(bytes);
-  const out = new Float32Array(int16.length);
-  for (let i = 0; i < int16.length; i += 1) {
-    out[i] = int16[i] / 0x8000;
-  }
-  return out;
-}
-
 /**
- * Hook that manages a hybrid WebRTC voice session with the Aura backend.
+ * Hook that manages a pure WebRTC voice session with the backend.
  *
  * - Mic input goes via WebRTC audio track (browser's native AEC applies).
- * - Aura's audio output arrives via DataChannel as raw PCM and is played
- *   through AudioContext for smooth, jitter-free scheduling.
+ * - Server's audio output arrives via WebRTC audio track (Opus encoded).
  *
  * Returns:
  *   status      — "idle" | "connecting" | "connected" | "error" | "busy"
  *   isMuted     — mic is disabled
- *   isSpeaking  — Aura is currently outputting audio
+ *   isSpeaking  — server is currently outputting audio
  *   connect()   — start a session
  *   disconnect()— tear everything down
  *   toggleMute()— flip mic on/off
@@ -38,82 +25,24 @@ export function useAuraVoice() {
 
   const pcRef = useRef(null);
   const streamRef = useRef(null);
-  const playbackCtxRef = useRef(null);
-  const activeSourcesRef = useRef(new Set());
-  const nextPlaybackTimeRef = useRef(0);
-  const speakingTimeoutRef = useRef(null);
+  const audioRef = useRef(null);
+  const analyserRef = useRef(null);
+  const speakingCheckRef = useRef(null);
   const connectingRef = useRef(false);
 
-  const clearPlayback = useCallback(() => {
-    if (speakingTimeoutRef.current) {
-      clearTimeout(speakingTimeoutRef.current);
-      speakingTimeoutRef.current = null;
-    }
-
-    for (const src of activeSourcesRef.current) {
-      try {
-        src.stop(0);
-      } catch {
-        // ignore
-      }
-    }
-    activeSourcesRef.current.clear();
-
-    if (playbackCtxRef.current) {
-      nextPlaybackTimeRef.current = playbackCtxRef.current.currentTime + 0.01;
-    } else {
-      nextPlaybackTimeRef.current = 0;
-    }
-    setIsSpeaking(false);
-  }, []);
-
-  const schedulePlayback = useCallback((pcmChunk) => {
-    if (!(pcmChunk instanceof ArrayBuffer) || pcmChunk.byteLength < 2) return;
-
-    if (!playbackCtxRef.current) {
-      playbackCtxRef.current = new AudioContext();
-    }
-
-    const ctx = playbackCtxRef.current;
-    if (ctx.state === "suspended") {
-      ctx.resume().catch(() => {});
-    }
-
-    const samples = pcm16ToFloat32(pcmChunk);
-    if (!samples.length) return;
-
-    const buffer = ctx.createBuffer(1, samples.length, OUTPUT_SAMPLE_RATE);
-    buffer.copyToChannel(samples, 0);
-
-    const src = ctx.createBufferSource();
-    src.buffer = buffer;
-    src.connect(ctx.destination);
-    activeSourcesRef.current.add(src);
-    src.onended = () => {
-      activeSourcesRef.current.delete(src);
-    };
-
-    const now = ctx.currentTime;
-    const startAt = Math.max(now + 0.02, nextPlaybackTimeRef.current || 0);
-    src.start(startAt);
-    nextPlaybackTimeRef.current = startAt + buffer.duration;
-
-    setIsSpeaking(true);
-    if (speakingTimeoutRef.current) {
-      clearTimeout(speakingTimeoutRef.current);
-    }
-    speakingTimeoutRef.current = setTimeout(() => {
-      setIsSpeaking(false);
-      speakingTimeoutRef.current = null;
-    }, 260);
-  }, []);
-
   const cleanup = useCallback(() => {
-    clearPlayback();
+    if (speakingCheckRef.current) {
+      cancelAnimationFrame(speakingCheckRef.current);
+      speakingCheckRef.current = null;
+    }
 
-    if (playbackCtxRef.current) {
-      playbackCtxRef.current.close().catch(() => {});
-      playbackCtxRef.current = null;
+    if (audioRef.current) {
+      audioRef.current.srcObject = null;
+      audioRef.current = null;
+    }
+
+    if (analyserRef.current) {
+      analyserRef.current = null;
     }
 
     if (pcRef.current) {
@@ -126,9 +55,8 @@ export function useAuraVoice() {
       streamRef.current = null;
     }
 
-    nextPlaybackTimeRef.current = 0;
     setIsSpeaking(false);
-  }, [clearPlayback]);
+  }, []);
 
   const connect = useCallback(async () => {
     if (connectingRef.current || status === "connecting" || status === "connected") return;
@@ -136,6 +64,7 @@ export function useAuraVoice() {
     setStatus("connecting");
 
     try {
+      // Get mic stream with AEC
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -145,7 +74,7 @@ export function useAuraVoice() {
       });
       streamRef.current = stream;
 
-      // Fetch ICE config (STUN + TURN) from backend
+      // Fetch ICE config from backend
       let iceServers = [{ urls: "stun:stun.l.google.com:19302" }];
       try {
         const iceResp = await fetch(`${BACKEND_URL}/ice-config`);
@@ -160,29 +89,48 @@ export function useAuraVoice() {
       const pc = new RTCPeerConnection({ iceServers });
       pcRef.current = pc;
 
-      // Add mic track — browser AEC applies automatically
+      // Add mic track
       stream.getTracks().forEach((t) => pc.addTrack(t, stream));
 
-      // Create DataChannel for receiving Aura's audio output.
-      // Must be created by the offerer (client) so SCTP is negotiated in the SDP.
-      const dc = pc.createDataChannel("audio", { ordered: true });
-      dc.binaryType = "arraybuffer";
-      dc.onmessage = (msg) => {
-        if (msg.data instanceof ArrayBuffer) {
-          if (msg.data.byteLength === CLEAR_SIGNAL.length) {
-            const text = new TextDecoder().decode(msg.data);
-            if (text === CLEAR_SIGNAL) {
-              clearPlayback();
-              return;
-            }
+      // Handle incoming audio track from server
+      pc.ontrack = (event) => {
+        console.log("Received track:", event.track.kind);
+        if (event.track.kind === "audio") {
+          // Create audio element to play the track
+          const audio = new Audio();
+          audio.srcObject = event.streams[0];
+          audio.autoplay = true;
+          audioRef.current = audio;
+
+          // Set up analyser to detect when server is speaking
+          try {
+            const audioCtx = new AudioContext();
+            const source = audioCtx.createMediaStreamSource(event.streams[0]);
+            const analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 256;
+            source.connect(analyser);
+            analyserRef.current = analyser;
+
+            // Check audio levels periodically
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            const checkSpeaking = () => {
+              if (!analyserRef.current) return;
+              analyser.getByteFrequencyData(dataArray);
+              const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+              setIsSpeaking(avg > 10);
+              speakingCheckRef.current = requestAnimationFrame(checkSpeaking);
+            };
+            checkSpeaking();
+          } catch {
+            // Analyser setup failed, speaking detection won't work
           }
-          schedulePlayback(msg.data);
         }
       };
 
       // Connection state changes
       pc.onconnectionstatechange = () => {
         const state = pc.connectionState;
+        console.log("Connection state:", state);
         if (state === "failed" || state === "closed") {
           cleanup();
           setStatus("idle");
@@ -219,7 +167,7 @@ export function useAuraVoice() {
 
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
-        if (resp.status === 503 || err.error === "max_sessions_reached") {
+        if (resp.status === 503) {
           throw new Error("max_sessions");
         }
         throw new Error("offer_failed");
@@ -230,7 +178,7 @@ export function useAuraVoice() {
 
       setStatus("connected");
     } catch (e) {
-      console.error("Aura voice connect error:", e);
+      console.error("Voice connect error:", e);
       const msg = String(e?.message || "");
       if (msg === "max_sessions") {
         setStatus("busy");
@@ -241,7 +189,7 @@ export function useAuraVoice() {
     } finally {
       connectingRef.current = false;
     }
-  }, [status, cleanup, schedulePlayback, clearPlayback]);
+  }, [status, cleanup]);
 
   const disconnect = useCallback(() => {
     cleanup();
