@@ -30,7 +30,19 @@ function Bubble({ msg, isStreaming }) {
             ))}
           </div>
         )}
-        {isUser ? msg.text : <ReactMarkdown>{msg.text}</ReactMarkdown>}
+        {isUser ? msg.text : (
+          <ReactMarkdown
+            components={{
+              p: ({ children }) => <p style={{ margin: "0 0 8px 0" }}>{children}</p>,
+              ul: ({ children }) => <ul style={{ margin: "8px 0", paddingLeft: 20 }}>{children}</ul>,
+              ol: ({ children }) => <ol style={{ margin: "8px 0", paddingLeft: 20 }}>{children}</ol>,
+              li: ({ children }) => <li style={{ marginBottom: 4 }}>{children}</li>,
+              strong: ({ children }) => <strong style={{ fontWeight: 600, color: "rgba(255,255,255,0.9)" }}>{children}</strong>,
+            }}
+          >
+            {msg.text}
+          </ReactMarkdown>
+        )}
         {!isUser && isStreaming && (
           <span style={{ display: "inline-block", width: 7, height: 14, marginLeft: 3, background: "#5ac8fa", borderRadius: 1, verticalAlign: "text-bottom", animation: "cblink 0.8s step-end infinite" }} />
         )}

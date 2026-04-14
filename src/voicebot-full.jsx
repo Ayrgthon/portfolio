@@ -121,7 +121,7 @@ export default function VoicebotFull({ voiceApi, onBack, onMinimize }) {
             {statusText}
           </div>
             <div style={{ fontSize: 11, color: "rgba(255,255,255,0.28)", fontFamily: "'JetBrains Mono', monospace" }}>
-              gemini-2.5-flash · WebSocket
+              gemini-2.5-flash · WebRTC
           </div>
         </div>
 
@@ -164,7 +164,7 @@ export default function VoicebotFull({ voiceApi, onBack, onMinimize }) {
       {/* footer */}
       <div style={{ padding: "12px 40px 16px", borderTop: "1px solid rgba(255,255,255,0.04)", textAlign: "center" }}>
         <span style={{ fontSize: 10, color: "rgba(255,255,255,0.15)", fontFamily: "'JetBrains Mono', monospace" }}>
-            aura voice · real-time AI assistant · WebSocket + Gemini Live
+            aura voice · real-time AI assistant · WebRTC + Gemini Live
         </span>
       </div>
     </div>

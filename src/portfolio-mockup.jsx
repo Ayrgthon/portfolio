@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import ReactMarkdown from "react-markdown";
 
 const SECTIONS = ["home", "projects", "experience", "contact"];
 
@@ -335,7 +336,19 @@ function ChatPreviewBubble({ message, index, streaming }) {
           ))}
         </div>
       )}
-      {message.text}
+      {isUser ? message.text : (
+        <ReactMarkdown
+          components={{
+            p: ({ children }) => <p style={{ margin: "0 0 8px 0" }}>{children}</p>,
+            ul: ({ children }) => <ul style={{ margin: "8px 0", paddingLeft: 20 }}>{children}</ul>,
+            ol: ({ children }) => <ol style={{ margin: "8px 0", paddingLeft: 20 }}>{children}</ol>,
+            li: ({ children }) => <li style={{ marginBottom: 4 }}>{children}</li>,
+            strong: ({ children }) => <strong style={{ fontWeight: 600, color: "rgba(255,255,255,0.9)" }}>{children}</strong>,
+          }}
+        >
+          {message.text}
+        </ReactMarkdown>
+      )}
       {message.from === "bot" && streaming && <StreamingCursor />}
     </div>
   );
@@ -574,7 +587,7 @@ function VoicePreview({ voiceApi }) {
             {statusLabel}
           </div>
           <div style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", fontFamily: "'JetBrains Mono', monospace", marginTop: 2 }}>
-            gemini-2.5-flash · WebSocket
+            gemini-2.5-flash · WebRTC
           </div>
         </div>
       </div>
